@@ -48,7 +48,7 @@ class _MyHomePageState extends State<MyHomePage> {
   int stoneMined = 0;
   List<String> texts = [
     "Hello, welcome to Explorer. You are the orange ball. To move, use WASD (not arrow keys!). Move to the right 9 times.",
-    "Now hold the v key while hovering over the blue squares (they're supposed to be iron).",
+    "Now hold the v key until the bar at the bottom fills up while hovering over the blue squares with your mouse (they're supposed to be iron).",
     "You have mined some iron! Press e to open the inventory. You can close it with e too.",
     "Put the iron in your inventory by clicking on a square.",
     "Mine three stone, or brown squares, like that (and put them in your inventory)",
@@ -223,7 +223,7 @@ class _MyHomePageState extends State<MyHomePage> {
           mined?.complete(false);
           mined = null;
           miningMilliseconds = 0;
-        } else if (event is RawKeyEvent) {
+        } else if (event is RawKeyUpEvent) {
         } else {
           print("Unknown key $event.");
         }
@@ -344,7 +344,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                         inventoryItems,
                                         kInventoryGridWidth,
                                         () => cursorStack,
-                                        (Item x) => cursorStack = x,
+                                        (Item x) => setState(()=>cursorStack = x),
                                         (int x) => x == tutorialLevel
                                             ? tutorialLevel++
                                             : null,
@@ -392,6 +392,19 @@ class _MyHomePageState extends State<MyHomePage> {
                                       Container(),
                                   Padding(
                                     padding: const EdgeInsets.all(8.0),
+                                    child: LinearProgressIndicator(
+                                      minHeight: 10,
+                                      value: ((miningMilliseconds ?? 0) /
+                                              (thingMining
+                                                      ?.millisecondsToMine ??
+                                                  1000))
+                                          .toDouble(),
+                                      valueColor:
+                                          AlwaysStoppedAnimation(Colors.yellow),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.all(8.0),
                                     child: Container(
                                       color: Colors.grey.withOpacity(.5),
                                       child: Padding(
@@ -402,14 +415,6 @@ class _MyHomePageState extends State<MyHomePage> {
                                       ),
                                     ),
                                   ),
-                                  LinearProgressIndicator(
-                                    value: ((miningMilliseconds ?? 0) /
-                                            (thingMining?.millisecondsToMine ??
-                                                1000))
-                                        .toDouble(),
-                                    valueColor:
-                                        AlwaysStoppedAnimation(Colors.yellow),
-                                  )
                                 ],
                               ),
                               IgnorePointer(
@@ -417,10 +422,14 @@ class _MyHomePageState extends State<MyHomePage> {
                                         cursorPosition == null
                                     ? Container()
                                     : CustomPaint(
-                                        size: Size(constraints.maxWidth,
-                                            constraints.maxHeight),
+                                        size: Size(
+                                          constraints.maxWidth,
+                                          constraints.maxHeight,
+                                        ),
                                         painter: CursorStack(
-                                            cursorPosition, cursorStack),
+                                          cursorPosition,
+                                          cursorStack,
+                                        ),
                                       ),
                               ),
                             ],
@@ -430,7 +439,8 @@ class _MyHomePageState extends State<MyHomePage> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                    "Explorer 1.0 out now, along with Thanksgiving Edition!"),
+                                  "Explorer 1.0 out now, along with Thanksgiving Edition!",
+                                ),
                                 Text("Press to start"),
                               ],
                             ),

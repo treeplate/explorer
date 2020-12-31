@@ -9,9 +9,10 @@ import 'grid.dart';
 //Furnace: used for smelting; placable: true; minable: true; infinite: false; smeltable: false; fuel: false; smelted: null; millisecondsToMine: 1000
 //Iron-ore: can be smelted for iron-plate; placable: false; minable: true; infinite: true; smeltable: true; fuel: false; smelted: iron-plate; millisecondsToMine: 5000
 //Stone: can be crafted into furnace; placable: false; minable: true; infinite: true; smeltable: false; fuel: false; smelted: null; millisecondsToMine: 5000
-//Iron-plate: useless, bug: you can mine furnace while iron-plate in there and the iron-plate dissapears; placable: false; minable: true; infinite: true; smeltable: false; fuel: false; smelted: null; millisecondsToMine: 5000
+//Iron-plate: can be crafted into checkmark, bug: you can mine furnace while iron-plate in there and the iron-plate dissapears; placable: false; minable: true; infinite: true; smeltable: false; fuel: false; smelted: null; millisecondsToMine: 5000
 //Coal: fuel for smelting; placable: false; minable: true; infinite: true; smeltable: false; fuel: true; smelted: null; millisecondsToMine: 5000
 //Empty: specially treated item; used to represent nothing; placable: false; minable: false; infinite: true; smeltable: false; fuel: false; smelted: null; millisecondsToMine: 5000
+//Checkmark: you need one to win the game; placable: false; minable: true; infinite: false; smeltable: false; fuel: false; smelted: null; millisecondsToMine: 5000
 
 abstract class Item {
   GridCell get paintedCell;
@@ -23,8 +24,12 @@ abstract class Item {
   Item get smelted => null;
   int get millisecondsToMine => 5000;
   Item copy();
-  Widget ui(void Function(Item) setCS, Item cs,
-          void Function(void Function()) setState, void Function(int l) newLevelIfL) =>
+  Widget ui(
+    void Function(Item) setCS,
+    Item cs,
+    void Function(void Function()) setState,
+    void Function(int l) newLevelIfL,
+  ) =>
       Text(runtimeType.toString() + "selected");
 }
 
@@ -42,11 +47,16 @@ class FurnaceItem extends Item {
   double value = 0;
   Item produced = EmptyItem();
   Timer timer;
+  int ironTakenN = 0;
 
   int get millisecondsToMine => 1000;
 
-  Widget ui(void Function(Item) setCursorStack, Item cursorStack,
-          void Function(void Function()) setState, void Function(int l) newLevelIfL) =>
+  Widget ui(
+    void Function(Item) setCursorStack,
+    Item cursorStack,
+    void Function(void Function()) setState,
+    void Function(int l) newLevelIfL,
+  ) =>
       Container(
         color: Colors.grey,
         child: Row(
@@ -63,12 +73,12 @@ class FurnaceItem extends Item {
                       setState(() {
                         if (fuelcell is! EmptyItem) value += .02;
                       });
-                      print(value);
+                      //print(value);
                       if (value >= 1) {
                         timer.cancel();
                         timer = null;
                         setState(() {
-                          print("HII");
+                          //print("HII");
                           produced = holding.smelted;
                           holding = EmptyItem();
                           fuelcell = EmptyItem();
@@ -107,6 +117,10 @@ class FurnaceItem extends Item {
                     setCursorStack(produced);
                     produced = EmptyItem();
                     newLevelIfL(15);
+                    ironTakenN++;
+                    if (ironTakenN >= 3) {
+                      newLevelIfL(16);
+                    }
                   });
                 }
               },
@@ -127,11 +141,32 @@ class FurnaceGridCell extends GridCell {
     path.lineTo(offset.dx + size.width / 2, offset.dy);
     Paint paint = Paint()..color = Colors.orange;
     canvas.drawPath(path, paint);
-    canvas.drawCircle((offset & size).center - Offset(5, 0), 2, Paint()..color = Colors.black);
-    canvas.drawCircle((offset & size).center + Offset(5, 0), 2, Paint()..color = Colors.black);
-    canvas.drawLine((offset & size).center + Offset(5, 10), (offset & size).center + Offset(0, 15), Paint()..color = Colors.black);
-    canvas.drawLine((offset & size).center + Offset(-5, 10), (offset & size).center + Offset(0, 15), Paint()..color = Colors.black);
-     canvas.drawLine((offset & size).center + Offset(5, 10), (offset & size).center + Offset(5, 15), (Paint()..color = Colors.red)..strokeWidth = 2);
+    /* Turkey:
+    canvas.drawCircle(
+      (offset & size).center - Offset(5, 0),
+      2,
+      Paint()..color = Colors.black,
+    );
+    canvas.drawCircle(
+      (offset & size).center + Offset(5, 0),
+      2,
+      Paint()..color = Colors.black,
+    );
+    canvas.drawLine(
+      (offset & size).center + Offset(5, 10),
+      (offset & size).center + Offset(0, 15),
+      Paint()..color = Colors.black,
+    );
+    canvas.drawLine(
+      (offset & size).center + Offset(-5, 10),
+      (offset & size).center + Offset(0, 15),
+      Paint()..color = Colors.black,
+    );
+    canvas.drawLine(
+      (offset & size).center + Offset(5, 10),
+      (offset & size).center + Offset(5, 15),
+      (Paint()..color = Colors.red)..strokeWidth = 2,
+    ); */
   }
 }
 
@@ -271,4 +306,20 @@ class EmptyItem extends Item {
 class EmptyGridCell extends GridCell {
   @override
   void paint(Canvas canvas, Size size, Offset offset) {}
+}
+
+class CheckmarkItem extends Item {
+  GridCell get paintedCell => CheckmarkGridCell();
+  String toString() => "checkmark";
+  Item copy() => CheckmarkItem();
+}
+
+class CheckmarkGridCell extends GridCell {
+  void paint(Canvas canvas, Size size, Offset offset) {
+    Path path = Path();
+    path.moveTo(offset.dx, offset.dy + (size.height / 2));
+    path.lineTo(offset.dx + (size.width / 2), offset.dy + size.height);
+    path.lineTo(offset.dx + size.width, offset.dy);
+    canvas.drawPath(path, ((Paint()..color=Colors.green)..style=PaintingStyle.stroke)..strokeWidth=3);
+  }
 }

@@ -52,7 +52,7 @@ class _MyHomePageState extends State<MyHomePage> {
     "You have mined some iron! Press e to open the inventory. You can close it with e too.",
     "Put the iron in your inventory by clicking on a square.",
     "Mine three stone, or brown squares, like that (and put them in your inventory)",
-    "Tap the Add to recipe button (at the left of the inventory) holding a stone.",
+    "Tap the Add to recipe button below the orange triangle (at the left of the inventory) holding a stone.",
     "Do that 2 more times",
     "Now take out the orange triangle (a furnace).",
     "Place it by clicking on a square in the board.",
@@ -63,7 +63,9 @@ class _MyHomePageState extends State<MyHomePage> {
     "Tap on the furnace.",
     "Put the iron and coal in the slots at the left of the gray rectangle (not far left).",
     "Take the iron plate (the blue square) out.",
-    "The end (for now)."
+    "Put the iron plate in your inventory, and make 2 more iron plates (remember, iron and coal at the left of the grey rectangle).",
+    "Make a checkmark (press the button under the checkmark in the left of the inventory while holding an iron three times, then take the checkmark out).",
+    "The end. (You can still play.)"
   ];
 
   //cursor stack
@@ -236,46 +238,69 @@ class _MyHomePageState extends State<MyHomePage> {
     //print("rebuild: $miningMilliseconds ${thingMining?.millisecondsToMine}");
     return Scaffold(
       body: Center(
-        child: LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) =>
-              MouseRegion(
-            onHover: (PointerHoverEvent event) {
-              setState(() {
-                cursorPosition = event.position;
-              });
-            },
-            child: FocusScope(
-              autofocus: true,
-              child: Focus(
-                onKey: onKey,
-                child: Builder(builder: (BuildContext context) {
-                  FocusNode node = Focus.of(context);
-                  try {
-                    return node.hasFocus
-                        ? Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              ListView(
-                                scrollDirection: Axis.vertical,
-                                shrinkWrap: true,
-                                children: [
-                                  LayoutBuilder(
-                                    builder: (BuildContext context,
-                                            BoxConstraints _) =>
-                                        //ListView(
-                                        //height: constraints.maxHeight,
-                                        SizedBox(
-                                      height: max(
-                                          (board.length / boardW) * kCellDim,
-                                          constraints.maxHeight),
-                                      child: ListView(
-                                        scrollDirection: Axis.horizontal,
-                                        shrinkWrap: true,
-                                        children: [
-                                          GestureDetector(
-                                            onTapDown:
-                                                (TapDownDetails details) {
-                                              if (cursorStack == null) {
+        child: Container(
+          color: Colors.brown[400],
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) =>
+                MouseRegion(
+              onHover: (PointerHoverEvent event) {
+                setState(() {
+                  cursorPosition = event.position;
+                });
+              },
+              child: FocusScope(
+                autofocus: true,
+                child: Focus(
+                  onKey: onKey,
+                  child: Builder(builder: (BuildContext context) {
+                    FocusNode node = Focus.of(context);
+                    try {
+                      return node.hasFocus
+                          ? Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                ListView(
+                                  scrollDirection: Axis.vertical,
+                                  shrinkWrap: true,
+                                  children: [
+                                    LayoutBuilder(
+                                      builder: (BuildContext context,
+                                              BoxConstraints _) =>
+                                          //ListView(
+                                          //height: constraints.maxHeight,
+                                          SizedBox(
+                                        height: max(
+                                            (board.length / boardW) * kCellDim,
+                                            constraints.maxHeight),
+                                        child: ListView(
+                                          scrollDirection: Axis.horizontal,
+                                          shrinkWrap: true,
+                                          children: [
+                                            GestureDetector(
+                                              onTapDown:
+                                                  (TapDownDetails details) {
+                                                if (cursorStack == null) {
+                                                  int boardX =
+                                                      (details.localPosition.dx /
+                                                              kCellDim)
+                                                          .floor();
+                                                  int boardY =
+                                                      (details.localPosition.dy /
+                                                              kCellDim)
+                                                          .floor();
+                                                  if (boardX > boardW) return;
+                                                  if (boardY >
+                                                      board.length / boardW)
+                                                    return;
+                                                  setState(() {
+                                                    if (tutorialLevel == 13)
+                                                      tutorialLevel++;
+                                                    dialog = board[
+                                                        boardX + boardY * boardW];
+                                                  });
+                                                  return;
+                                                }
+                                                if (!cursorStack.placable) return;
                                                 int boardX =
                                                     (details.localPosition.dx /
                                                             kCellDim)
@@ -286,172 +311,154 @@ class _MyHomePageState extends State<MyHomePage> {
                                                         .floor();
                                                 if (boardX > boardW) return;
                                                 if (boardY >
-                                                    board.length / boardW)
-                                                  return;
+                                                    board.length / boardW) return;
+                                                if (board[
+                                                        boardX + boardY * boardW]
+                                                    is! EmptyItem) return;
                                                 setState(() {
-                                                  if (tutorialLevel == 13)
+                                                  board[boardX +
+                                                          boardY * boardW] =
+                                                      cursorStack;
+                                                  cursorStack = null;
+                                                  if (tutorialLevel == 8 ||
+                                                      tutorialLevel == 10)
                                                     tutorialLevel++;
-                                                  dialog = board[
-                                                      boardX + boardY * boardW];
                                                 });
-                                                return;
-                                              }
-                                              if (!cursorStack.placable) return;
-                                              int boardX =
-                                                  (details.localPosition.dx /
-                                                          kCellDim)
-                                                      .floor();
-                                              int boardY =
-                                                  (details.localPosition.dy /
-                                                          kCellDim)
-                                                      .floor();
-                                              if (boardX > boardW) return;
-                                              if (boardY >
-                                                  board.length / boardW) return;
-                                              if (board[
-                                                      boardX + boardY * boardW]
-                                                  is! EmptyItem) return;
-                                              setState(() {
-                                                board[boardX +
-                                                        boardY * boardW] =
-                                                    cursorStack;
-                                                cursorStack = null;
-                                                if (tutorialLevel == 8 ||
-                                                    tutorialLevel == 10)
-                                                  tutorialLevel++;
-                                              });
-                                            },
-                                            child: GridDrawer(
-                                              board
-                                                  .map((e) => e.paintedCell)
-                                                  .toList(),
-                                              boardW,
-                                              kCellDim,
-                                              playerX,
-                                              playerY,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              inventory
-                                  ? Center(
-                                      child: Inventory(
-                                        kCellDim,
-                                        inventoryItems,
-                                        kInventoryGridWidth,
-                                        () => cursorStack,
-                                        (Item x) => setState(()=>cursorStack = x),
-                                        (int x) => x == tutorialLevel
-                                            ? tutorialLevel++
-                                            : null,
-                                        onTap: (Item x) {
-                                          setState(() {
-                                            if (cursorStack == null &&
-                                                x is! EmptyItem) {
-                                              cursorStack = x;
-                                              inventoryItems[inventoryItems
-                                                  .indexOf(x)] = EmptyItem();
-                                              if (x is FurnaceItem &&
-                                                  (tutorialLevel == 10)) {
-                                                tutorialLevel++;
-                                              }
-                                            } else if (x is EmptyItem &&
-                                                cursorStack != null) {
-                                              inventoryItems[inventoryItems
-                                                  .indexOf(x)] = cursorStack;
-                                              if (tutorialLevel == 3 &&
-                                                  cursorStack is IronOreItem)
-                                                tutorialLevel++;
-                                              if (tutorialLevel == 12 &&
-                                                  cursorStack is CoalItem) {
-                                                tutorialLevel++;
-                                              }
-                                              cursorStack = null;
-                                            }
-                                          });
-                                        },
-                                      ),
-                                    )
-                                  : Container(),
-                              Column(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  dialog?.ui(
-                                          (Item cS) => setState(
-                                                () => cursorStack = cS,
+                                              },
+                                              child: GridDrawer(
+                                                board
+                                                    .map((e) => e.paintedCell)
+                                                    .toList(),
+                                                boardW,
+                                                kCellDim,
+                                                playerX,
+                                                playerY,
                                               ),
-                                          cursorStack,
-                                          setState,
-                                          (int l) => tutorialLevel == l
-                                              ? tutorialLevel++
-                                              : null) ??
-                                      Container(),
-                                  Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: LinearProgressIndicator(
-                                      minHeight: 10,
-                                      value: ((miningMilliseconds ?? 0) /
-                                              (thingMining
-                                                      ?.millisecondsToMine ??
-                                                  1000))
-                                          .toDouble(),
-                                      valueColor:
-                                          AlwaysStoppedAnimation(Colors.yellow),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Container(
-                                      color: Colors.grey.withOpacity(.5),
-                                      child: Padding(
-                                        padding: EdgeInsets.all(8),
-                                        child: Text(
-                                          texts[tutorialLevel],
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),
+                                  ],
+                                ),
+                                inventory
+                                    ? Center(
+                                        child: Inventory(
+                                          kCellDim,
+                                          inventoryItems,
+                                          kInventoryGridWidth,
+                                          () => cursorStack,
+                                          (Item x) => setState(
+                                            () => cursorStack = x,
+                                          ),
+                                          (int x) => x == tutorialLevel
+                                              ? tutorialLevel++
+                                              : null,
+                                          onTap: (Item x) {
+                                            setState(() {
+                                              if (cursorStack == null &&
+                                                  x is! EmptyItem) {
+                                                cursorStack = x;
+                                                inventoryItems[inventoryItems
+                                                    .indexOf(x)] = EmptyItem();
+                                                if (x is FurnaceItem &&
+                                                    (tutorialLevel == 10)) {
+                                                  tutorialLevel++;
+                                                }
+                                              } else if (x is EmptyItem &&
+                                                  cursorStack != null) {
+                                                inventoryItems[inventoryItems
+                                                    .indexOf(x)] = cursorStack;
+                                                if (tutorialLevel == 3 &&
+                                                    cursorStack is IronOreItem)
+                                                  tutorialLevel++;
+                                                if (tutorialLevel == 12 &&
+                                                    cursorStack is CoalItem) {
+                                                  tutorialLevel++;
+                                                }
+                                                cursorStack = null;
+                                              }
+                                            });
+                                          },
+                                        ),
+                                      )
+                                    : Container(),
+                                Column(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    dialog?.ui(
+                                            (Item cS) => setState(
+                                                  () => cursorStack = cS,
+                                                ),
+                                            cursorStack,
+                                            setState,
+                                            (int l) => tutorialLevel == l
+                                                ? tutorialLevel++
+                                                : null) ??
+                                        Container(),
+                                    Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: LinearProgressIndicator(
+                                        minHeight: 10,
+                                        value: ((miningMilliseconds ?? 0) /
+                                                (thingMining
+                                                        ?.millisecondsToMine ??
+                                                    1000))
+                                            .toDouble(),
+                                        valueColor:
+                                            AlwaysStoppedAnimation(Colors.yellow),
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: Container(
+                                        color: Colors.grey.withOpacity(.5),
+                                        child: Padding(
+                                          padding: EdgeInsets.all(8),
+                                          child: Text(
+                                            texts[tutorialLevel],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                IgnorePointer(
+                                  child: cursorStack == null ||
+                                          cursorPosition == null
+                                      ? Container()
+                                      : CustomPaint(
+                                          size: Size(
+                                            constraints.maxWidth,
+                                            constraints.maxHeight,
+                                          ),
+                                          painter: CursorStack(
+                                            cursorPosition,
+                                            cursorStack,
+                                          ),
+                                        ),
+                                ),
+                              ],
+                            )
+                          : FlatButton(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    "Explorer has been worked on for the New Year. The turkeys are gone.",
                                   ),
+                                  Text("Press to start"),
                                 ],
                               ),
-                              IgnorePointer(
-                                child: cursorStack == null ||
-                                        cursorPosition == null
-                                    ? Container()
-                                    : CustomPaint(
-                                        size: Size(
-                                          constraints.maxWidth,
-                                          constraints.maxHeight,
-                                        ),
-                                        painter: CursorStack(
-                                          cursorPosition,
-                                          cursorStack,
-                                        ),
-                                      ),
-                              ),
-                            ],
-                          )
-                        : FlatButton(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  "Explorer 1.0 out now, along with Thanksgiving Edition!",
-                                ),
-                                Text("Press to start"),
-                              ],
-                            ),
-                            onPressed: node.requestFocus);
-                  } catch (e, st) {
-                    print("ERROR: $e, $st");
-                    return Center(
-                      child: Text("The end"),
-                    );
-                  }
-                }),
+                              onPressed: node.requestFocus);
+                    } catch (e, st) {
+                      print("ERROR: $e, $st");
+                      return Center(
+                        child: Text("The end"),
+                      );
+                    }
+                  }),
+                ),
               ),
             ),
           ),

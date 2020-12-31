@@ -47,6 +47,17 @@ class Inventory extends StatelessWidget {
                 setCS,
                 newLIfL,
               ),
+              Recipe(
+                [
+                  IronPlateItem(),
+                  IronPlateItem(),
+                  IronPlateItem(),
+                ],
+                CheckmarkItem(),
+                cursorStack,
+                setCS,
+                newLIfL,
+              ),
             ],
           ),
           Column(
@@ -160,8 +171,13 @@ class _RecipeState extends State<Recipe> {
                 if (widget.cursorStack() == null && result is! EmptyItem) {
                   setState(() {
                     widget.setCS(result);
+                    if (result is CheckmarkItem) {
+                      widget.newLIfL(17);
+                    } else if (result is FurnaceItem) {
+                      widget.newLIfL(7);
+                    }
                     result = EmptyItem();
-                    widget.newLIfL(7);
+                    
                   });
                 }
               },

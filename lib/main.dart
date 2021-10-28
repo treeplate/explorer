@@ -1,9 +1,7 @@
-import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'items.dart';
 import 'inventory.dart';
@@ -39,35 +37,6 @@ class _MyHomePageState extends State<MyHomePage> {
   //inventory
   List<Item> inventoryItems;
 
-  bool inventory = false;
-
-  List<Item> board = List.filled(100, EmptyItem(), growable: true);
-  int boardW = 10;
-
-  int tutorialLevel = 0;
-  int stoneMined = 0;
-  List<String> texts = [
-    "Hello, welcome to Explorer. You are the orange ball. To move, use WASD (not arrow keys!). Move to the right 9 times.",
-    "Now hold the v key until the bar at the bottom fills up while hovering over the blue squares with your mouse (they're supposed to be iron).",
-    "You have mined some iron! Press e to open the inventory. You can close it with e too.",
-    "Put the iron in your inventory by clicking on a square.",
-    "Mine three stone, or brown squares, like that (and put them in your inventory)",
-    "Tap the Add to recipe button below the orange triangle (at the left of the inventory) holding a stone.",
-    "Do that 2 more times",
-    "Now take out the orange triangle (a furnace).",
-    "Place it by clicking on a square in the board.",
-    "Now mine it.",
-    "Place it again.",
-    "Mine some coal (the black squares).",
-    "Put it in the inventory.",
-    "Tap on the furnace.",
-    "Put the iron and coal in the slots at the left of the gray rectangle (not far left).",
-    "Take the iron plate (the blue square) out.",
-    "Put the iron plate in your inventory, and make 2 more iron plates (remember, iron and coal at the left of the grey rectangle).",
-    "Make a checkmark (press the button under the checkmark in the left of the inventory while holding an iron three times, then take the checkmark out).",
-    "The end. (You can still play.)"
-  ];
-
   //cursor stack
   Item cursorStack;
   Offset cursorPosition;
@@ -78,164 +47,84 @@ class _MyHomePageState extends State<MyHomePage> {
     () => EmptyItem(),
   ];
 
+  final List<Item> hotbar = [
+    MoveItem(Direction(1, 0)),
+    MoveItem(Direction(0, 1)),
+    MoveItem(Direction(-1, 0)),
+    MoveItem(Direction(0, -1)),
+    MoveableItem(),
+    ImmoveableItem(),
+    SlideItem(true),
+    SlideItem(false),
+    RotateCWItem(),
+  ];
+
   Item dialog;
-
-  //mining
-  Timer miningTimer;
-  int miningMilliseconds = 0;
-  Completer<bool> mined;
-  Item thingMining;
-
-  //player
-  int playerX = 0;
-  int playerY = 0;
 
   void initState() {
     super.initState();
     //print("neWI");
     inventoryItems = List.generate(
-      100,
+      kInventoryGridWidth * 10,
       (index) => possibleItems[r.nextInt(possibleItems.length)](),
     );
   }
 
-  int numb = 0;
-  Item get expanding {
-    if (tutorialLevel == 0) {
-      tutorialLevel++;
-      return IronOreItem();
-    } else {
-      if (numb == 0) {
-        numb++;
-        return CoalItem();
+  void tick() {
+    setState(() {
+      for (Item item in inventoryItems) {
+        item.ticked = false;
       }
-      if (numb == 1) {
-        numb++;
-        return StoneItem();
+      for (int y = 0; y < 10; y++) {
+        for (int x = 0; x < kInventoryGridWidth; x++) {
+          moveCellAt(x, y);
+        }
       }
-      return EmptyItem();
-    }
+    });
   }
 
-  bool onKey(FocusNode focusNode, RawKeyEvent event) {
-    switch (event.character) {
-      case "e":
-        setState(() {
-          inventory = !inventory;
-          if (tutorialLevel == 2) tutorialLevel++;
-        });
-        break;
-      case "w":
-        setState(() {
-          if (playerY != 0) playerY--;
-        });
-        break;
-      case "a":
-        setState(() {
-          if (playerX != 0) playerX--;
-        });
-        break;
-      case "d":
-        setState(() {
-          playerX++;
-          if (playerX + 1 == boardW) {
-            int offset = 0;
-            int bL = board.length;
-            for (int y = 1; y <= bL / boardW; y++) {
-              board.insert((y * boardW + offset), expanding);
-              offset++;
-            }
-            boardW++;
-          }
-        });
-        break;
-      case "s":
-        setState(() {
-          playerY++;
-          if (playerY + 1 == board.length / boardW) {
-            for (int x = 0; x < boardW; x++) {
-              board.add(expanding);
-            }
-          }
-        });
-        break;
-      case "v":
-        //print("got v");
-        setState(() {
-          if (cursorStack != null) return;
-          int boardX = (cursorPosition.dx / kCellDim).floor();
-          int boardY = (cursorPosition.dy / kCellDim).floor();
-          if (boardX > boardW) return;
-          if (boardY > board.length / boardW) return;
-          Item thing = board[boardX + boardY * boardW];
-          if (!thing.minable) return;
-          thingMining = thing;
-          if (miningTimer != null) return;
-          mined = Completer();
-          miningTimer = Timer.periodic(
-            Duration(milliseconds: 20),
-            (_) {
-              setState(() {
-                miningMilliseconds += 20;
-              });
-              //print(miningMilliseconds);
-              if (miningMilliseconds == thing.millisecondsToMine) {
-                miningTimer?.cancel();
-                miningTimer = null;
-                mined?.complete(true);
-                //print("completed: ${mined.isCompleted}");
-                mined = null;
-                setState(() {
-                  miningMilliseconds = 0;
-                  cursorStack = thing.copy();
-                  if (tutorialLevel == 1 && thingMining is IronOreItem) {
-                    tutorialLevel++;
-                  }
-                  if (tutorialLevel == 9 && thingMining is FurnaceItem) {
-                    tutorialLevel++;
-                  }
-                  if (tutorialLevel == 11 && thingMining is CoalItem) {
-                    tutorialLevel++;
-                  }
-                  if (tutorialLevel == 4 && thingMining is StoneItem) {
-                    stoneMined++;
-                    if (stoneMined % 3 == 0) {
-                      tutorialLevel++;
-                    }
-                  }
-                });
-              }
-            },
-          );
-          if (thing.infinite) return;
-          //print("!infinite");
-          mined.future.then((bool value) {
-            //print("got $value");
-            setState(() {
-              //print("!!!: $value");
-              if (value) board[boardX + boardY * boardW] = EmptyItem();
-            });
-          });
-        });
-        break;
-      default:
-        if (event is RawKeyUpEvent && event.logicalKey.keyLabel == "v") {
-          miningTimer?.cancel();
-          miningTimer = null;
-          mined?.complete(false);
-          mined = null;
-          miningMilliseconds = 0;
-        } else if (event is RawKeyUpEvent) {
-        } else {
-          print("Unknown key $event.");
-        }
+  bool moveCellAt(int x, int y, {Direction moveTo}) {
+    Item current = inventoryItems[x + y * kInventoryGridWidth];
+    Direction dir;
+    if (moveTo != null) {
+      dir = current.pushed(moveTo);
+    } else {
+      if (current.ticked) {
+        //print("$x,$y has already ticked!");
+        return false;
+      }
+      current.ticked = true;
+      dir = current.doMove();
+      if (current is RotateCWItem) {
+        rotateCellAt(x, y-1);
+        rotateCellAt(x+1, y);
+        rotateCellAt(x, y+1);
+        rotateCellAt(x-1, y);
+      }
     }
+    if (dir.x == 0 && dir.y == 0) {
+      return moveTo == null;
+    }
+    //print("Moving ${dir.x}, ${dir.y} ");
+    int newX = x + dir.x;
+    int newY = y + dir.y;
+    if (newX < 0 || newX >= kInventoryGridWidth || newY < 0 || newY >= 10) {
+      //print("Out of bounds!");
+      return false;
+    }
+    if (inventoryItems[newX + newY * kInventoryGridWidth] is! EmptyItem) {
+      if (!moveCellAt(newX, newY, moveTo: dir)) {
+        //print("($x,$y)'s front can't move!");
+        return false;
+      }
+    }
+    inventoryItems[x + y * kInventoryGridWidth] = EmptyItem();
+    inventoryItems[newX + newY * kInventoryGridWidth] = current;
     return true;
   }
 
   @override
   Widget build(BuildContext context) {
-    //print("rebuild: $miningMilliseconds ${thingMining?.millisecondsToMine}");
     return Scaffold(
       body: Center(
         child: Container(
@@ -251,7 +140,6 @@ class _MyHomePageState extends State<MyHomePage> {
               child: FocusScope(
                 autofocus: true,
                 child: Focus(
-                  onKey: onKey,
                   child: Builder(builder: (BuildContext context) {
                     FocusNode node = Focus.of(context);
                     try {
@@ -259,169 +147,56 @@ class _MyHomePageState extends State<MyHomePage> {
                           ? Stack(
                               alignment: Alignment.center,
                               children: [
-                                ListView(
-                                  scrollDirection: Axis.vertical,
-                                  shrinkWrap: true,
-                                  children: [
-                                    LayoutBuilder(
-                                      builder: (BuildContext context,
-                                              BoxConstraints _) =>
-                                          //ListView(
-                                          //height: constraints.maxHeight,
-                                          SizedBox(
-                                        height: max(
-                                            (board.length / boardW) * kCellDim,
-                                            constraints.maxHeight),
-                                        child: ListView(
-                                          scrollDirection: Axis.horizontal,
-                                          shrinkWrap: true,
-                                          children: [
-                                            GestureDetector(
-                                              onTapDown:
-                                                  (TapDownDetails details) {
-                                                if (cursorStack == null) {
-                                                  int boardX =
-                                                      (details.localPosition.dx /
-                                                              kCellDim)
-                                                          .floor();
-                                                  int boardY =
-                                                      (details.localPosition.dy /
-                                                              kCellDim)
-                                                          .floor();
-                                                  if (boardX > boardW) return;
-                                                  if (boardY >
-                                                      board.length / boardW)
-                                                    return;
-                                                  setState(() {
-                                                    if (tutorialLevel == 13)
-                                                      tutorialLevel++;
-                                                    dialog = board[
-                                                        boardX + boardY * boardW];
-                                                  });
-                                                  return;
-                                                }
-                                                if (!cursorStack.placable) return;
-                                                int boardX =
-                                                    (details.localPosition.dx /
-                                                            kCellDim)
-                                                        .floor();
-                                                int boardY =
-                                                    (details.localPosition.dy /
-                                                            kCellDim)
-                                                        .floor();
-                                                if (boardX > boardW) return;
-                                                if (boardY >
-                                                    board.length / boardW) return;
-                                                if (board[
-                                                        boardX + boardY * boardW]
-                                                    is! EmptyItem) return;
-                                                setState(() {
-                                                  board[boardX +
-                                                          boardY * boardW] =
-                                                      cursorStack;
-                                                  cursorStack = null;
-                                                  if (tutorialLevel == 8 ||
-                                                      tutorialLevel == 10)
-                                                    tutorialLevel++;
-                                                });
-                                              },
-                                              child: GridDrawer(
-                                                board
-                                                    .map((e) => e.paintedCell)
-                                                    .toList(),
-                                                boardW,
-                                                kCellDim,
-                                                playerX,
-                                                playerY,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                                Center(
+                                  child: Column(
+                                    children: [
+                                      Inventory(
+                                        kCellDim,
+                                        inventoryItems,
+                                        kInventoryGridWidth,
+                                        () => cursorStack,
+                                        onTap: (Item x) {
+                                          setState(() {
+                                            if (cursorStack == null &&
+                                                x is! EmptyItem) {
+                                              cursorStack = x;
+                                              inventoryItems[inventoryItems
+                                                  .indexOf(x)] = EmptyItem();
+                                            } else if (x is EmptyItem &&
+                                                cursorStack != null) {
+                                              inventoryItems[inventoryItems
+                                                  .indexOf(x)] = cursorStack;
+                                              cursorStack = null;
+                                            }
+                                          });
+                                        },
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                inventory
-                                    ? Center(
-                                        child: Inventory(
-                                          kCellDim,
-                                          inventoryItems,
-                                          kInventoryGridWidth,
-                                          () => cursorStack,
-                                          (Item x) => setState(
-                                            () => cursorStack = x,
-                                          ),
-                                          (int x) => x == tutorialLevel
-                                              ? tutorialLevel++
-                                              : null,
-                                          onTap: (Item x) {
-                                            setState(() {
-                                              if (cursorStack == null &&
-                                                  x is! EmptyItem) {
-                                                cursorStack = x;
-                                                inventoryItems[inventoryItems
-                                                    .indexOf(x)] = EmptyItem();
-                                                if (x is FurnaceItem &&
-                                                    (tutorialLevel == 10)) {
-                                                  tutorialLevel++;
-                                                }
-                                              } else if (x is EmptyItem &&
-                                                  cursorStack != null) {
-                                                inventoryItems[inventoryItems
-                                                    .indexOf(x)] = cursorStack;
-                                                if (tutorialLevel == 3 &&
-                                                    cursorStack is IronOreItem)
-                                                  tutorialLevel++;
-                                                if (tutorialLevel == 12 &&
-                                                    cursorStack is CoalItem) {
-                                                  tutorialLevel++;
-                                                }
-                                                cursorStack = null;
-                                              }
-                                            });
-                                          },
-                                        ),
-                                      )
-                                    : Container(),
-                                Column(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    dialog?.ui(
-                                            (Item cS) => setState(
-                                                  () => cursorStack = cS,
-                                                ),
-                                            cursorStack,
-                                            setState,
-                                            (int l) => tutorialLevel == l
-                                                ? tutorialLevel++
-                                                : null) ??
-                                        Container(),
-                                    Padding(
-                                      padding: const EdgeInsets.all(8.0),
-                                      child: LinearProgressIndicator(
-                                        minHeight: 10,
-                                        value: ((miningMilliseconds ?? 0) /
-                                                (thingMining
-                                                        ?.millisecondsToMine ??
-                                                    1000))
-                                            .toDouble(),
-                                        valueColor:
-                                            AlwaysStoppedAnimation(Colors.yellow),
+                                      Inventory(
+                                        kCellDim,
+                                        hotbar,
+                                        hotbar.length,
+                                        () => cursorStack,
+                                        onTap: (Item x) {
+                                          setState(() {
+                                            if (cursorStack == null) {
+                                              cursorStack = x.copy();
+                                            } else {
+                                              cursorStack = null;
+                                            }
+                                          });
+                                        },
                                       ),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.all(8.0),
-                                      child: Container(
-                                        color: Colors.grey.withOpacity(.5),
-                                        child: Padding(
-                                          padding: EdgeInsets.all(8),
-                                          child: Text(
-                                            texts[tutorialLevel],
-                                          ),
-                                        ),
+                                      FloatingActionButton(onPressed: tick),
+                                      FloatingActionButton(
+                                        onPressed: () {
+                                          inventoryItems = List.generate(
+                                            kInventoryGridWidth * 10,
+                                            (index) => EmptyItem(),
+                                          );
+                                        },
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                                 IgnorePointer(
                                   child: cursorStack == null ||
@@ -440,13 +215,10 @@ class _MyHomePageState extends State<MyHomePage> {
                                 ),
                               ],
                             )
-                          : FlatButton(
+                          : TextButton(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Text(
-                                    "Explorer has been worked on for the New Year. The turkeys are gone.",
-                                  ),
                                   Text("Press to start"),
                                 ],
                               ),
@@ -465,6 +237,13 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       ),
     );
+  }
+
+  void rotateCellAt(int x, int y) {
+    if (x < 0 || x >= kInventoryGridWidth || y < 0 || y >= 10) {
+      return;
+    }
+    inventoryItems[x + y * kInventoryGridWidth] = inventoryItems[x + y * kInventoryGridWidth].rotatedCW()..ticked = inventoryItems[x + y * kInventoryGridWidth].ticked;
   }
 }
 

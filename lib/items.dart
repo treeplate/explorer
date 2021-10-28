@@ -1,125 +1,86 @@
-import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import 'grid.dart';
 
-//Items:
-//Furnace: used for smelting; placable: true; minable: true; infinite: false; smeltable: false; fuel: false; smelted: null; millisecondsToMine: 1000
-//Iron-ore: can be smelted for iron-plate; placable: false; minable: true; infinite: true; smeltable: true; fuel: false; smelted: iron-plate; millisecondsToMine: 5000
-//Stone: can be crafted into furnace; placable: false; minable: true; infinite: true; smeltable: false; fuel: false; smelted: null; millisecondsToMine: 5000
-//Iron-plate: useless, bug: you can mine furnace while iron-plate in there and the iron-plate dissapears; placable: false; minable: true; infinite: true; smeltable: false; fuel: false; smelted: null; millisecondsToMine: 5000
-//Coal: fuel for smelting; placable: false; minable: true; infinite: true; smeltable: false; fuel: true; smelted: null; millisecondsToMine: 5000
-//Empty: specially treated item; used to represent nothing; placable: false; minable: false; infinite: true; smeltable: false; fuel: false; smelted: null; millisecondsToMine: 5000
+class Direction {
+  Direction(this.x, this.y);
+  final int x;
+  final int y;
+
+  double get radiansRotated => 0;
+}
 
 abstract class Item {
   GridCell get paintedCell;
-  bool get placable => false;
-  bool get minable => true;
-  bool get infinite => !placable;
-  bool get smeltable => false;
-  bool get fuel => false;
-  Item get smelted => null;
-  int get millisecondsToMine => 5000;
+  Direction doMove();
+  Direction pushed(Direction direction);
   Item copy();
-  Widget ui(void Function(Item) setCS, Item cs,
-          void Function(void Function()) setState, void Function(int l) newLevelIfL) =>
-      Text(runtimeType.toString() + "selected");
+  Item rotatedCW() => copy();
+  bool ticked = false;
 }
 
-class FurnaceItem extends Item {
-  FurnaceItem();
-
-  String toString() => "furnace[$holding & $fuelcell => $produced]";
-
-  GridCell get paintedCell => FurnaceGridCell();
-
-  bool get placable => true;
-
-  Item holding = EmptyItem();
-  Item fuelcell = EmptyItem();
-  double value = 0;
-  Item produced = EmptyItem();
-  Timer timer;
-
-  int get millisecondsToMine => 1000;
-
-  Widget ui(void Function(Item) setCursorStack, Item cursorStack,
-          void Function(void Function()) setState, void Function(int l) newLevelIfL) =>
-      Container(
-        color: Colors.grey,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            GestureDetector(
-              child: GridDrawer([holding.paintedCell], 1, kCellDim),
-              onTap: () {
-                setState(() {
-                  if (holding is EmptyItem && cursorStack.smeltable) {
-                    holding = cursorStack;
-                    setCursorStack(null);
-                    timer = Timer.periodic(Duration(milliseconds: 20), (timer) {
-                      setState(() {
-                        if (fuelcell is! EmptyItem) value += .02;
-                      });
-                      print(value);
-                      if (value >= 1) {
-                        timer.cancel();
-                        timer = null;
-                        setState(() {
-                          print("HII");
-                          produced = holding.smelted;
-                          holding = EmptyItem();
-                          fuelcell = EmptyItem();
-                          value = 0;
-                          newLevelIfL(14);
-                        });
-                      }
-                    });
-                  }
-                });
-              },
-            ),
-            GestureDetector(
-              child: GridDrawer([fuelcell.paintedCell], 1, kCellDim),
-              onTap: () {
-                setState(() {
-                  if (fuelcell is EmptyItem && cursorStack.fuel) {
-                    fuelcell = cursorStack;
-                    setCursorStack(null);
-                  }
-                });
-              },
-            ),
-            Container(
-              width: 100,
-              child: LinearProgressIndicator(
-                valueColor: AlwaysStoppedAnimation(Colors.yellow),
-                value: value,
-              ),
-            ),
-            GestureDetector(
-              child: GridDrawer([produced.paintedCell], 1, kCellDim),
-              onTap: () {
-                if (cursorStack == null && produced is! EmptyItem) {
-                  setState(() {
-                    setCursorStack(produced);
-                    produced = EmptyItem();
-                    newLevelIfL(15);
-                  });
-                }
-              },
-            ),
-          ],
-        ),
-      );
-
-  Item copy() => FurnaceItem();
+class EmptyItem extends Item {
+  GridCell get paintedCell => EmptyGridCell();
+  Direction pushed(Direction dir) => throw UnsupportedError("move");
+  Direction doMove() => Direction(0, 0);
+  Item copy() => EmptyItem();
 }
 
-class FurnaceGridCell extends GridCell {
+class EmptyGridCell extends GridCell {
+  @override
+  void paint(Canvas canvas, Size size, Offset offset) {}
+}
+
+class MoveItem extends Item {
+  MoveItem(this.moveDir);
+  final Direction moveDir;
+  Direction pushed(Direction dir) {
+    if (dir == moveDir) ticked = true;
+    return dir;
+  }
+
+  Direction doMove() => moveDir;
+  GridCell get paintedCell => MoveGridCell(radiansRotated);
+
+  double get radiansRotated {
+    double radians = 0;
+    if (moveDir.y == 1) {
+      radians += pi;
+    }
+    if (moveDir.x == 1) {
+      radians += pi / 2;
+    } else if (moveDir.x == -1) {
+      radians += pi * 3 / 2;
+    }
+    return radians;
+  }
+
+  Item copy() => MoveItem(moveDir);
+  Item rotatedCW() {
+    int newX = 0;
+    int newY = 0;
+    if (moveDir.x == 0) {
+      newX = moveDir.y == 1 ? -1 : 1;
+    } else {
+      newY = moveDir.x == 1 ? 1 : -1;
+    }
+    return MoveItem(Direction(newX, newY));
+  }
+}
+
+class MoveGridCell extends GridCell {
+  MoveGridCell(this.radians);
+  final double radians;
+
   void paint(Canvas canvas, Size size, Offset offset) {
+    canvas.save();
+    canvas.translate(offset.dx + (kCellDim / 2), offset.dy + (kCellDim / 2));
+    canvas.rotate(radians);
+    canvas.translate(
+        -(offset.dx + (kCellDim / 2)), -(offset.dy + (kCellDim / 2)));
     Path path = Path();
     path.fillType = PathFillType.evenOdd;
     path.moveTo(offset.dx + size.width, offset.dy + size.height);
@@ -127,21 +88,174 @@ class FurnaceGridCell extends GridCell {
     path.lineTo(offset.dx + size.width / 2, offset.dy);
     Paint paint = Paint()..color = Colors.orange;
     canvas.drawPath(path, paint);
-    canvas.drawCircle((offset & size).center - Offset(5, 0), 2, Paint()..color = Colors.black);
-    canvas.drawCircle((offset & size).center + Offset(5, 0), 2, Paint()..color = Colors.black);
-    canvas.drawLine((offset & size).center + Offset(5, 10), (offset & size).center + Offset(0, 15), Paint()..color = Colors.black);
-    canvas.drawLine((offset & size).center + Offset(-5, 10), (offset & size).center + Offset(0, 15), Paint()..color = Colors.black);
-     canvas.drawLine((offset & size).center + Offset(5, 10), (offset & size).center + Offset(5, 15), (Paint()..color = Colors.red)..strokeWidth = 2);
+    canvas.drawCircle(
+      (offset & size).center - Offset(5, 0),
+      2,
+      Paint()..color = Colors.black,
+    );
+    canvas.drawCircle(
+      (offset & size).center + Offset(5, 0),
+      2,
+      Paint()..color = Colors.black,
+    );
+    canvas.drawLine(
+      (offset & size).center + Offset(5, 10),
+      (offset & size).center + Offset(0, 15),
+      Paint()..color = Colors.black,
+    );
+    canvas.drawLine(
+      (offset & size).center + Offset(-5, 10),
+      (offset & size).center + Offset(0, 15),
+      Paint()..color = Colors.black,
+    );
+    canvas.drawLine(
+      (offset & size).center + Offset(5, 10),
+      (offset & size).center + Offset(5, 15),
+      (Paint()..color = Colors.red)..strokeWidth = 2,
+    );
+    canvas.restore();
   }
 }
 
+class MoveableItem extends Item {
+  GridCell get paintedCell => MoveableGridCell();
+  Direction pushed(Direction dir) => dir;
+  Direction doMove() => Direction(0, 0);
+  Item copy() => MoveableItem();
+}
+
+class MoveableGridCell extends GridCell {
+  @override
+  void paint(Canvas canvas, Size size, Offset offset) {
+    canvas.drawRect(
+      offset & size,
+      Paint()..color = Colors.yellow,
+    );
+    if (debugPaintSizeEnabled) {
+      canvas.drawCircle(offset, 5, Paint()..color = Colors.green);
+    }
+  }
+}
+
+class RotateCWItem extends Item {
+  GridCell get paintedCell => RotateCWGridCell();
+  Direction pushed(Direction dir) => dir;
+  Direction doMove() => Direction(0, 0);
+  Item copy() => RotateCWItem();
+}
+
+class RotateCWGridCell extends GridCell {
+  @override
+  void paint(Canvas canvas, Size size, Offset offset) {
+    canvas.drawRect(
+      offset & size,
+      Paint()..color = Colors.orange,
+    );
+    //TODO better graphics for rotateCW
+    canvas.drawCircle(
+      offset + Offset(size.width / 2, size.height / 2),
+      (size.width/4)+2,
+      ((Paint()..color=Colors.white)..style = PaintingStyle.stroke)..strokeWidth = 2,
+    );
+    canvas.drawLine(
+      offset + Offset(size.width / 2, size.height - 10),
+      offset + Offset(size.width / 2 + 10, size.height - 20),
+      (Paint()..color = Colors.white)..strokeWidth = 2,
+    );
+    canvas.drawLine(
+      offset + Offset(size.width / 2, size.height - 10),
+      offset + Offset(size.width / 2 + 10, size.height),
+      (Paint()..color = Colors.white)..strokeWidth = 2,
+    );
+    if (debugPaintSizeEnabled) {
+      canvas.drawCircle(offset, 5, Paint()..color = Colors.green);
+    }
+  }
+}
+
+class SlideItem extends Item {
+  final bool horizontal;
+
+  SlideItem(this.horizontal);
+
+  @override
+  Item copy() => SlideItem(horizontal);
+  Item rotatedCW() => SlideItem(!horizontal);
+
+  @override
+  Direction doMove() => Direction(0, 0);
+
+  @override
+  GridCell get paintedCell => SlideGridCell(!horizontal);
+
+  @override
+  Direction pushed(Direction direction) {
+    if (horizontal ? direction.y == 0 : direction.x == 0) {
+      return direction;
+    } else {
+      return Direction(0, 0);
+    }
+  }
+}
+
+class SlideGridCell extends GridCell {
+  final bool horizontal;
+
+  SlideGridCell(this.horizontal);
+  @override
+  void paint(Canvas canvas, Size size, Offset offset) {
+    canvas.drawRect(
+      offset & size,
+      Paint()..color = Colors.yellow,
+    );
+    if (debugPaintSizeEnabled) {
+      canvas.drawCircle(offset, 5, Paint()..color = Colors.green);
+    }
+    canvas.drawLine(
+      offset +
+          (horizontal ? Offset(size.width / 3, 0) : Offset(0, size.height / 3)),
+      offset +
+          (horizontal
+              ? Offset(size.width / 3, size.height)
+              : Offset(size.width, size.height / 3)),
+      (Paint()..color = Colors.white)..strokeWidth = 5,
+    );
+    canvas.drawLine(
+      offset +
+          (horizontal
+              ? Offset(size.width * 2 / 3, 0)
+              : Offset(0, size.height * 2 / 3)),
+      offset +
+          (horizontal
+              ? Offset(size.width * 2 / 3, size.height)
+              : Offset(size.width, size.height * 2 / 3)),
+      (Paint()..color = Colors.white)..strokeWidth = 5,
+    );
+  }
+}
+
+class ImmoveableItem extends Item {
+  GridCell get paintedCell => ImmoveableGridCell();
+  Direction pushed(Direction dir) => Direction(0, 0);
+  Direction doMove() => Direction(0, 0);
+  Item copy() => ImmoveableItem();
+}
+
+class ImmoveableGridCell extends GridCell {
+  @override
+  void paint(Canvas canvas, Size size, Offset offset) {
+    canvas.drawRect(
+      offset & size,
+      Paint()..color = Colors.black,
+    );
+    if (debugPaintSizeEnabled) {
+      canvas.drawCircle(offset, 5, Paint()..color = Colors.green);
+    }
+  }
+}
+/*
 class IronOreItem extends Item {
   GridCell get paintedCell => IronOreGridCell();
-
-  String toString() => "iron";
-
-  bool get smeltable => true;
-  Item get smelted => IronPlateItem();
 
   IronOreItem copy() => IronOreItem();
 }
@@ -174,8 +288,6 @@ class IronOreGridCell extends GridCell {
 class StoneItem extends Item {
   GridCell get paintedCell => StoneGridCell();
 
-  String toString() => "stone";
-
   StoneItem copy() => StoneItem();
 }
 
@@ -204,35 +316,9 @@ class StoneGridCell extends GridCell {
   }
 }
 
-class IronPlateItem extends Item {
-  GridCell get paintedCell => IronPlateGridCell();
-
-  String toString() => "iron-plate";
-
-  Item copy() => IronPlateItem();
-}
-
-class IronPlateGridCell extends GridCell {
-  @override
-  void paint(Canvas canvas, Size size, Offset offset) {
-    canvas.drawRect(
-      offset & size,
-      Paint()..color = Colors.blue,
-    );
-    if (debugPaintSizeEnabled) {
-      canvas.drawCircle(offset, 5, Paint()..color = Colors.green);
-    }
-  }
-}
-
 class CoalItem extends Item {
   GridCell get paintedCell => CoalGridCell();
-
-  String toString() => "coal";
-
   CoalItem copy() => CoalItem();
-
-  bool get fuel => true;
 }
 
 class CoalGridCell extends GridCell {
@@ -260,15 +346,18 @@ class CoalGridCell extends GridCell {
   }
 }
 
-class EmptyItem extends Item {
-  GridCell get paintedCell => EmptyGridCell();
-  String toString() => "<empty>";
-  bool get minable => false;
-
-  Item copy() => EmptyItem();
+class CheckmarkItem extends Item {
+  GridCell get paintedCell => CheckmarkGridCell();
+  Item copy() => CheckmarkItem();
 }
 
-class EmptyGridCell extends GridCell {
-  @override
-  void paint(Canvas canvas, Size size, Offset offset) {}
+class CheckmarkGridCell extends GridCell {
+  void paint(Canvas canvas, Size size, Offset offset) {
+    Path path = Path();
+    path.moveTo(offset.dx, offset.dy + (size.height / 2));
+    path.lineTo(offset.dx + (size.width / 2), offset.dy + size.height);
+    path.lineTo(offset.dx + size.width, offset.dy);
+    canvas.drawPath(path, ((Paint()..color=Colors.green)..style=PaintingStyle.stroke)..strokeWidth=3);
+  }
 }
+*/

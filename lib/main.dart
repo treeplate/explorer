@@ -1,14 +1,16 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'cells.dart';
 import 'world_render.dart';
 import 'grid.dart';
 
-const int kGridWidth = 20;
-const int kGridHeight = 20;
+const int kGridWidth = 21;
+const int kGridHeight = 12;
 
 void main() {
   runApp(MyApp());
@@ -38,38 +40,53 @@ class _MyHomePageState extends State<MyHomePage> {
   List<Cell> grid;
 
   //cursor stack
+
+  TextEditingController textFieldA = TextEditingController(text: 'temp');
+  TextEditingController textFieldB = TextEditingController(text: '0');
   Cell cursorStack;
   Offset cursorPosition;
 
   final List<Cell> hotbar = [
-    MoveCell(Direction(1, 0)),
-    MoveCell(Direction(0, 1)),
-    MoveCell(Direction(-1, 0)),
-    MoveCell(Direction(0, -1)),
-    MoveableCell(),
-    ImmoveableCell(),
-    SlideCell(true),
-    SlideCell(false),
-    RotateCWCell(),
-    EnemyCell(),
-    GeneratorCell(Direction(1, 0)),
-    GeneratorCell(Direction(0, 1)),
-    GeneratorCell(Direction(-1, 0)),
-    GeneratorCell(Direction(0, -1)),
+    MoveCell(Direction(1, 0), false),
+    MoveCell(Direction(0, 1), false),
+    MoveCell(Direction(-1, 0), false),
+    MoveCell(Direction(0, -1), false),
+    MoveableCell(false),
+    ImmoveableCell(false),
+    SlideCell(true, false),
+    SlideCell(false, false),
+    RotateCWCell(false),
+    RotateCCWCell(false),
+    EnemyCell(false),
+    GeneratorCell(Direction(1, 0), false),
+    GeneratorCell(Direction(0, 1), false),
+    GeneratorCell(Direction(-1, 0), false),
+    GeneratorCell(Direction(0, -1), false),
+    TrashCell(false),
   ];
 
-  Cell dialog;
+  String get levelText => texts[int.parse(textFieldB.value.text)];
+
+  List<String> texts = [
+    "Press 'Load Level' to load the level specified\nClick on a cell in the hotbar to pick it up\nClick on the grid to drop it\nPress 'Pause/Play' to start the simulation\nThe goal is to destroy all red\nReds, when something touches it, disappear along with the thing that touched it\nTry placing a turkey to start!",
+    "Yellows can be pushed by turkeys",
+    "Black is impassable",
+    "Sliders (the yellows with lines) can only be pushed in that direction",
+    "Rotators rotate things next to them",
+    "Generators (greens) generate more of what comes at the bottom, at the top",
+    "Purple is like red, but indestructible"
+  ];
 
   void initState() {
     super.initState();
     //print("neWI");
     grid = List.generate(
       kGridWidth * kGridHeight,
-      (index) => EmptyCell(),
+      (index) => EmptyCell(false),
     );
-    Timer.periodic(Duration(milliseconds: 250), tick);
   }
 
+  Timer timer;
   void tick([_]) {
     setState(() {
       for (Cell cell in grid) {
@@ -91,7 +108,8 @@ class _MyHomePageState extends State<MyHomePage> {
       }
       for (int y = 0; y < kGridHeight; y++) {
         for (int x = 0; x < kGridWidth; x++) {
-          if (grid[x + y * kGridWidth] is RotateCWCell) {
+          if (grid[x + y * kGridWidth] is RotateCWCell ||
+              grid[x + y * kGridWidth] is RotateCCWCell) {
             moveCellAt(x, y);
           }
         }
@@ -105,8 +123,11 @@ class _MyHomePageState extends State<MyHomePage> {
     if (moveTo != null) {
       dir = current.pushed(moveTo);
       if (current is EnemyCell) {
-        grid[x + y * kGridWidth] = EmptyCell();
-        grid[(x - moveTo.x) + (y - moveTo.y) * kGridWidth] = EmptyCell();
+        grid[x + y * kGridWidth] = EmptyCell(current.setInStone);
+      }
+      if (current is TrashCell || current is EnemyCell) {
+        grid[(x - moveTo.x) + (y - moveTo.y) * kGridWidth] =
+            EmptyCell(current.setInStone);
       }
     } else {
       if (current.ticked) {
@@ -120,6 +141,20 @@ class _MyHomePageState extends State<MyHomePage> {
         rotateCellAt(x + 1, y);
         rotateCellAt(x, y + 1);
         rotateCellAt(x - 1, y);
+      }
+      if (current is RotateCCWCell) {
+        rotateCellAt(x, y - 1);
+        rotateCellAt(x, y - 1);
+        rotateCellAt(x, y - 1);
+        rotateCellAt(x + 1, y);
+        rotateCellAt(x + 1, y);
+        rotateCellAt(x + 1, y);
+        rotateCellAt(x - 1, y);
+        rotateCellAt(x - 1, y);
+        rotateCellAt(x - 1, y);
+        rotateCellAt(x, y + 1);
+        rotateCellAt(x, y + 1);
+        rotateCellAt(x, y + 1);
       }
       if (current is GeneratorCell) {
         int copiedX = x - current.moveDir.x;
@@ -161,13 +196,17 @@ class _MyHomePageState extends State<MyHomePage> {
       //print("Out of bounds!");
       return false;
     }
+    if (grid[newX + newY * kGridWidth] is TrashCell) {
+      grid[x + y * kGridWidth] = EmptyCell(current.setInStone);
+      return true;
+    }
     if (grid[newX + newY * kGridWidth] is! EmptyCell) {
       if (!moveCellAt(newX, newY, moveTo: dir)) {
         //print("($x,$y)'s front can't move!");
         return false;
       }
     }
-    grid[x + y * kGridWidth] = EmptyCell();
+    grid[x + y * kGridWidth] = EmptyCell(current.setInStone);
     grid[newX + newY * kGridWidth] = current;
     return true;
   }
@@ -199,6 +238,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                 Center(
                                   child: Column(
                                     children: [
+                                      Text(levelText),
                                       World(
                                         kCellDim,
                                         grid,
@@ -207,12 +247,14 @@ class _MyHomePageState extends State<MyHomePage> {
                                         onTap: (Cell x) {
                                           setState(() {
                                             if (cursorStack == null &&
-                                                x is! EmptyCell) {
+                                                x is! EmptyCell &&
+                                                !x.setInStone) {
                                               cursorStack = x;
                                               grid[grid.indexOf(x)] =
-                                                  EmptyCell();
+                                                  EmptyCell(x.setInStone);
                                             } else if (x is EmptyCell &&
-                                                cursorStack != null) {
+                                                cursorStack != null &&
+                                                !x.setInStone) {
                                               grid[grid.indexOf(x)] =
                                                   cursorStack;
                                               cursorStack = null;
@@ -235,13 +277,76 @@ class _MyHomePageState extends State<MyHomePage> {
                                           });
                                         },
                                       ),
-                                      FloatingActionButton(onPressed: tick),
-                                      FloatingActionButton(
+                                      TextButton(
+                                        child: Text("Pause/Play"),
+                                        onPressed: () {
+                                          if (timer == null) {
+                                            timer = Timer.periodic(
+                                                Duration(milliseconds: 250),
+                                                tick);
+                                          } else {
+                                            timer.cancel();
+                                            timer = null;
+                                          }
+                                        },
+                                      ),
+                                      TextButton(
+                                        child: Text("Clear screen"),
                                         onPressed: () {
                                           grid = List.generate(
                                             kGridWidth * kGridHeight,
-                                            (index) => EmptyCell(),
+                                            (index) => EmptyCell(false),
                                           );
+                                        },
+                                      ),
+                                      SizedBox(
+                                        child: TextField(
+                                          controller: textFieldA,
+                                          decoration: InputDecoration(
+                                            labelText: "File to save/load",
+                                            border: OutlineInputBorder(),
+                                          ),
+                                        ),
+                                        width: 150,
+                                        height: 20,
+                                      ),
+                                      TextButton(
+                                        child: Text("Save to file"),
+                                        onPressed: () {
+                                          File(textFieldA.value.text)
+                                            ..createSync()
+                                            ..writeAsStringSync(grid.join(''));
+                                        },
+                                      ),
+                                      TextButton(
+                                        child: Text("Load from file"),
+                                        onPressed: () {
+                                          grid = File(textFieldA.value.text)
+                                              .readAsStringSync()
+                                              .split('')
+                                              .map((e) => parse(e, true))
+                                              .toList();
+                                        },
+                                      ),
+                                      SizedBox(
+                                        child: TextField(
+                                          controller: textFieldB,
+                                          decoration: InputDecoration(
+                                            labelText: "Level number (0-**)",
+                                            border: OutlineInputBorder(),
+                                          ),
+                                        ),
+                                        width: 150,
+                                        height: 20,
+                                      ),
+                                      TextButton(
+                                        child: Text("Load level"),
+                                        onPressed: () async {
+                                          grid = (await rootBundle.loadString(
+                                                  'levels/level-'+textFieldB.value.text))
+                                              .split('')
+                                              .map((e) => parse(e, true))
+                                              .toList();
                                         },
                                       ),
                                     ],

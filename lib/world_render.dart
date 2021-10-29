@@ -1,39 +1,39 @@
 import 'package:flutter/material.dart';
 
 import 'grid.dart';
-import 'items.dart';
+import 'cells.dart';
 
-class Inventory extends StatelessWidget {
-  Inventory(
+class World extends StatelessWidget {
+  World(
     this.cellDim,
-    this.items,
+    this.cells,
     this.gridWidth,
     this.cursorStack, {
     @required this.onTap,
   });
   final double cellDim;
 
-  final List<Item> items;
+  final List<Cell> cells;
   final int gridWidth;
-  final void Function(Item item) onTap;
+  final void Function(Cell cell) onTap;
 
-  final Item Function() cursorStack;
+  final Cell Function() cursorStack;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.grey,
+      color: Colors.white,
       child: GestureDetector(
         onTapDown: (TapDownDetails details) {
           Offset position = details.localPosition;
           int x = (position.dx / cellDim).floor();
           int y = (position.dy / cellDim).floor();
           int i = x + (y * gridWidth);
-          //print("Pressed $i (${items[i]})");
-          onTap(items[i]);
+          //print("Pressed $i (${cells[i]})");
+          onTap(cells[i]);
         },
         child: GridDrawer(
-          items.map((key) => key.paintedCell).toList(),
+          cells.map((key) => key.paintedCell).toList(),
           gridWidth,
           cellDim,
         ),

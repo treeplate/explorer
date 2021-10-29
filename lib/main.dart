@@ -1,13 +1,14 @@
-import 'dart:math';
+import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-import 'items.dart';
-import 'inventory.dart';
+import 'cells.dart';
+import 'world_render.dart';
 import 'grid.dart';
 
-const int kInventoryGridWidth = 10;
+const int kGridWidth = 20;
+const int kGridHeight = 20;
 
 void main() {
   runApp(MyApp());
@@ -34,60 +35,79 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  //inventory
-  List<Item> inventoryItems;
+  List<Cell> grid;
 
   //cursor stack
-  Item cursorStack;
+  Cell cursorStack;
   Offset cursorPosition;
 
-  //random inventory
-  final Random r = Random();
-  final List<Item Function()> possibleItems = [
-    () => EmptyItem(),
+  final List<Cell> hotbar = [
+    MoveCell(Direction(1, 0)),
+    MoveCell(Direction(0, 1)),
+    MoveCell(Direction(-1, 0)),
+    MoveCell(Direction(0, -1)),
+    MoveableCell(),
+    ImmoveableCell(),
+    SlideCell(true),
+    SlideCell(false),
+    RotateCWCell(),
+    EnemyCell(),
+    GeneratorCell(Direction(1, 0)),
+    GeneratorCell(Direction(0, 1)),
+    GeneratorCell(Direction(-1, 0)),
+    GeneratorCell(Direction(0, -1)),
   ];
 
-  final List<Item> hotbar = [
-    MoveItem(Direction(1, 0)),
-    MoveItem(Direction(0, 1)),
-    MoveItem(Direction(-1, 0)),
-    MoveItem(Direction(0, -1)),
-    MoveableItem(),
-    ImmoveableItem(),
-    SlideItem(true),
-    SlideItem(false),
-    RotateCWItem(),
-  ];
-
-  Item dialog;
+  Cell dialog;
 
   void initState() {
     super.initState();
     //print("neWI");
-    inventoryItems = List.generate(
-      kInventoryGridWidth * 10,
-      (index) => possibleItems[r.nextInt(possibleItems.length)](),
+    grid = List.generate(
+      kGridWidth * kGridHeight,
+      (index) => EmptyCell(),
     );
+    Timer.periodic(Duration(milliseconds: 250), tick);
   }
 
-  void tick() {
+  void tick([_]) {
     setState(() {
-      for (Item item in inventoryItems) {
-        item.ticked = false;
+      for (Cell cell in grid) {
+        cell.ticked = false;
       }
-      for (int y = 0; y < 10; y++) {
-        for (int x = 0; x < kInventoryGridWidth; x++) {
-          moveCellAt(x, y);
+      for (int y = 0; y < kGridHeight; y++) {
+        for (int x = 0; x < kGridWidth; x++) {
+          if (grid[x + y * kGridWidth] is MoveCell) {
+            moveCellAt(x, y);
+          }
+        }
+      }
+      for (int y = 0; y < kGridHeight; y++) {
+        for (int x = 0; x < kGridWidth; x++) {
+          if (grid[x + y * kGridWidth] is GeneratorCell) {
+            moveCellAt(x, y);
+          }
+        }
+      }
+      for (int y = 0; y < kGridHeight; y++) {
+        for (int x = 0; x < kGridWidth; x++) {
+          if (grid[x + y * kGridWidth] is RotateCWCell) {
+            moveCellAt(x, y);
+          }
         }
       }
     });
   }
 
   bool moveCellAt(int x, int y, {Direction moveTo}) {
-    Item current = inventoryItems[x + y * kInventoryGridWidth];
+    Cell current = grid[x + y * kGridWidth];
     Direction dir;
     if (moveTo != null) {
       dir = current.pushed(moveTo);
+      if (current is EnemyCell) {
+        grid[x + y * kGridWidth] = EmptyCell();
+        grid[(x - moveTo.x) + (y - moveTo.y) * kGridWidth] = EmptyCell();
+      }
     } else {
       if (current.ticked) {
         //print("$x,$y has already ticked!");
@@ -95,11 +115,40 @@ class _MyHomePageState extends State<MyHomePage> {
       }
       current.ticked = true;
       dir = current.doMove();
-      if (current is RotateCWItem) {
-        rotateCellAt(x, y-1);
-        rotateCellAt(x+1, y);
-        rotateCellAt(x, y+1);
-        rotateCellAt(x-1, y);
+      if (current is RotateCWCell) {
+        rotateCellAt(x, y - 1);
+        rotateCellAt(x + 1, y);
+        rotateCellAt(x, y + 1);
+        rotateCellAt(x - 1, y);
+      }
+      if (current is GeneratorCell) {
+        int copiedX = x - current.moveDir.x;
+        int copiedY = y - current.moveDir.y;
+        int newX = x + current.moveDir.x;
+        int newY = y + current.moveDir.y;
+        if (newX < 0 || newX >= kGridWidth || newY < 0 || newY >= kGridHeight) {
+          //print("Out of bounds!");
+          return false;
+        }
+        if (copiedX < 0 ||
+            copiedX >= kGridWidth ||
+            copiedY < 0 ||
+            copiedY >= kGridHeight) {
+          //print("Out of bounds!");
+          return false;
+        }
+        Cell copied = grid[copiedX + copiedY * kGridWidth];
+        if (copied is EmptyCell) {
+          return false;
+        }
+        if (grid[newX + newY * kGridWidth] is! EmptyCell) {
+          if (!moveCellAt(newX, newY, moveTo: current.moveDir)) {
+            //print("($x,$y)'s front can't move!");
+            return true;
+          }
+        }
+        grid[newX + newY * kGridWidth] = copied.copy()..ticked = true;
+        return true;
       }
     }
     if (dir.x == 0 && dir.y == 0) {
@@ -108,18 +157,18 @@ class _MyHomePageState extends State<MyHomePage> {
     //print("Moving ${dir.x}, ${dir.y} ");
     int newX = x + dir.x;
     int newY = y + dir.y;
-    if (newX < 0 || newX >= kInventoryGridWidth || newY < 0 || newY >= 10) {
+    if (newX < 0 || newX >= kGridWidth || newY < 0 || newY >= kGridHeight) {
       //print("Out of bounds!");
       return false;
     }
-    if (inventoryItems[newX + newY * kInventoryGridWidth] is! EmptyItem) {
+    if (grid[newX + newY * kGridWidth] is! EmptyCell) {
       if (!moveCellAt(newX, newY, moveTo: dir)) {
         //print("($x,$y)'s front can't move!");
         return false;
       }
     }
-    inventoryItems[x + y * kInventoryGridWidth] = EmptyItem();
-    inventoryItems[newX + newY * kInventoryGridWidth] = current;
+    grid[x + y * kGridWidth] = EmptyCell();
+    grid[newX + newY * kGridWidth] = current;
     return true;
   }
 
@@ -150,33 +199,33 @@ class _MyHomePageState extends State<MyHomePage> {
                                 Center(
                                   child: Column(
                                     children: [
-                                      Inventory(
+                                      World(
                                         kCellDim,
-                                        inventoryItems,
-                                        kInventoryGridWidth,
+                                        grid,
+                                        kGridWidth,
                                         () => cursorStack,
-                                        onTap: (Item x) {
+                                        onTap: (Cell x) {
                                           setState(() {
                                             if (cursorStack == null &&
-                                                x is! EmptyItem) {
+                                                x is! EmptyCell) {
                                               cursorStack = x;
-                                              inventoryItems[inventoryItems
-                                                  .indexOf(x)] = EmptyItem();
-                                            } else if (x is EmptyItem &&
+                                              grid[grid.indexOf(x)] =
+                                                  EmptyCell();
+                                            } else if (x is EmptyCell &&
                                                 cursorStack != null) {
-                                              inventoryItems[inventoryItems
-                                                  .indexOf(x)] = cursorStack;
+                                              grid[grid.indexOf(x)] =
+                                                  cursorStack;
                                               cursorStack = null;
                                             }
                                           });
                                         },
                                       ),
-                                      Inventory(
+                                      World(
                                         kCellDim,
                                         hotbar,
                                         hotbar.length,
                                         () => cursorStack,
-                                        onTap: (Item x) {
+                                        onTap: (Cell x) {
                                           setState(() {
                                             if (cursorStack == null) {
                                               cursorStack = x.copy();
@@ -189,9 +238,9 @@ class _MyHomePageState extends State<MyHomePage> {
                                       FloatingActionButton(onPressed: tick),
                                       FloatingActionButton(
                                         onPressed: () {
-                                          inventoryItems = List.generate(
-                                            kInventoryGridWidth * 10,
-                                            (index) => EmptyItem(),
+                                          grid = List.generate(
+                                            kGridWidth * kGridHeight,
+                                            (index) => EmptyCell(),
                                           );
                                         },
                                       ),
@@ -240,24 +289,26 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void rotateCellAt(int x, int y) {
-    if (x < 0 || x >= kInventoryGridWidth || y < 0 || y >= 10) {
+    if (x < 0 || x >= kGridWidth || y < 0 || y >= kGridHeight) {
       return;
     }
-    inventoryItems[x + y * kInventoryGridWidth] = inventoryItems[x + y * kInventoryGridWidth].rotatedCW()..ticked = inventoryItems[x + y * kInventoryGridWidth].ticked;
+
+    grid[x + y * kGridWidth] = grid[x + y * kGridWidth].rotatedCW()
+      ..ticked = grid[x + y * kGridWidth].ticked;
   }
 }
 
 class CursorStack extends CustomPainter {
-  CursorStack(this.position, this.item);
+  CursorStack(this.position, this.cell);
   final Offset position;
-  final Item item;
+  final Cell cell;
 
   bool shouldRepaint(CursorStack old) =>
-      position != old.position || item != old.item;
+      position != old.position || cell != old.cell;
 
   void paint(Canvas canvas, Size size) {
     //print(size);
-    item.paintedCell.paint(
+    cell.paintedCell.paint(
       canvas,
       Size(kCellDim, kCellDim),
       position - Offset(kCellDim / 2, kCellDim / 2),

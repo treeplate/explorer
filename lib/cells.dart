@@ -13,20 +13,20 @@ class Direction {
   double get radiansRotated => 0;
 }
 
-abstract class Item {
+abstract class Cell {
   GridCell get paintedCell;
   Direction doMove();
   Direction pushed(Direction direction);
-  Item copy();
-  Item rotatedCW() => copy();
+  Cell copy();
+  Cell rotatedCW() => copy();
   bool ticked = false;
 }
 
-class EmptyItem extends Item {
+class EmptyCell extends Cell {
   GridCell get paintedCell => EmptyGridCell();
   Direction pushed(Direction dir) => throw UnsupportedError("move");
   Direction doMove() => Direction(0, 0);
-  Item copy() => EmptyItem();
+  Cell copy() => EmptyCell();
 }
 
 class EmptyGridCell extends GridCell {
@@ -34,8 +34,8 @@ class EmptyGridCell extends GridCell {
   void paint(Canvas canvas, Size size, Offset offset) {}
 }
 
-class MoveItem extends Item {
-  MoveItem(this.moveDir);
+class MoveCell extends Cell {
+  MoveCell(this.moveDir);
   final Direction moveDir;
   Direction pushed(Direction dir) {
     if (dir == moveDir) ticked = true;
@@ -58,8 +58,8 @@ class MoveItem extends Item {
     return radians;
   }
 
-  Item copy() => MoveItem(moveDir);
-  Item rotatedCW() {
+  Cell copy() => MoveCell(moveDir);
+  Cell rotatedCW() {
     int newX = 0;
     int newY = 0;
     if (moveDir.x == 0) {
@@ -67,7 +67,7 @@ class MoveItem extends Item {
     } else {
       newY = moveDir.x == 1 ? 1 : -1;
     }
-    return MoveItem(Direction(newX, newY));
+    return MoveCell(Direction(newX, newY));
   }
 }
 
@@ -117,11 +117,94 @@ class MoveGridCell extends GridCell {
   }
 }
 
-class MoveableItem extends Item {
+class GeneratorCell extends Cell {
+  GeneratorCell(this.moveDir);
+  final Direction moveDir;
+  Direction pushed(Direction dir) {
+    return dir;
+  }
+
+  Direction doMove() => Direction(0, 0);
+  GridCell get paintedCell => GeneratorGridCell(radiansRotated);
+
+  double get radiansRotated {
+    double radians = 0;
+    if (moveDir.y == 1) {
+      radians += pi;
+    }
+    if (moveDir.x == 1) {
+      radians += pi / 2;
+    } else if (moveDir.x == -1) {
+      radians += pi * 3 / 2;
+    }
+    return radians;
+  }
+
+  Cell copy() => GeneratorCell(moveDir);
+  Cell rotatedCW() {
+    int newX = 0;
+    int newY = 0;
+    if (moveDir.x == 0) {
+      newX = moveDir.y == 1 ? -1 : 1;
+    } else {
+      newY = moveDir.x == 1 ? 1 : -1;
+    }
+    return GeneratorCell(Direction(newX, newY));
+  }
+}
+
+class GeneratorGridCell extends GridCell {
+  GeneratorGridCell(this.radians);
+  final double radians;
+
+  void paint(Canvas canvas, Size size, Offset offset) {
+    canvas.save();
+    canvas.translate(offset.dx + (kCellDim / 2), offset.dy + (kCellDim / 2));
+    canvas.rotate(radians);
+    canvas.translate(
+        -(offset.dx + (kCellDim / 2)), -(offset.dy + (kCellDim / 2)));
+    canvas.drawRect(
+      offset +
+              Offset(
+                size.width / 3,
+                size.height / 2,
+              ) &
+          Size(
+            size.width / 3,
+            size.height / 3,
+          ),
+      Paint()..color = Colors.green,
+    );
+    final double unitH = size.width / 8.0;
+    final double unitV = size.height / 8.0;
+    final Offset arrowHead = offset +
+        Offset(
+          4 * unitH,
+          2 * unitV,
+        );
+    final Path path = Path()
+      ..moveTo(offset.dx + 4 * unitH, offset.dy + 4 * unitV)
+      ..lineTo(arrowHead.dx, arrowHead.dy)
+      ..moveTo(arrowHead.dx - unitH, arrowHead.dy + unitV)
+      ..relativeLineTo(unitH, -unitV)
+      ..relativeLineTo(unitH, unitV);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.green
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.butt,
+    );
+    canvas.restore();
+  }
+}
+
+class MoveableCell extends Cell {
   GridCell get paintedCell => MoveableGridCell();
   Direction pushed(Direction dir) => dir;
   Direction doMove() => Direction(0, 0);
-  Item copy() => MoveableItem();
+  Cell copy() => MoveableCell();
 }
 
 class MoveableGridCell extends GridCell {
@@ -137,11 +220,31 @@ class MoveableGridCell extends GridCell {
   }
 }
 
-class RotateCWItem extends Item {
+class EnemyCell extends Cell {
+  GridCell get paintedCell => EnemyGridCell();
+  Direction pushed(Direction dir) => Direction(0, 0);
+  Direction doMove() => Direction(0, 0);
+  Cell copy() => EnemyCell();
+}
+
+class EnemyGridCell extends GridCell {
+  @override
+  void paint(Canvas canvas, Size size, Offset offset) {
+    canvas.drawRect(
+      offset & size,
+      Paint()..color = Colors.red,
+    );
+    if (debugPaintSizeEnabled) {
+      canvas.drawCircle(offset, 5, Paint()..color = Colors.green);
+    }
+  }
+}
+
+class RotateCWCell extends Cell {
   GridCell get paintedCell => RotateCWGridCell();
   Direction pushed(Direction dir) => dir;
   Direction doMove() => Direction(0, 0);
-  Item copy() => RotateCWItem();
+  Cell copy() => RotateCWCell();
 }
 
 class RotateCWGridCell extends GridCell {
@@ -151,21 +254,31 @@ class RotateCWGridCell extends GridCell {
       offset & size,
       Paint()..color = Colors.orange,
     );
-    //TODO better graphics for rotateCW
-    canvas.drawCircle(
-      offset + Offset(size.width / 2, size.height / 2),
-      (size.width/4)+2,
-      ((Paint()..color=Colors.white)..style = PaintingStyle.stroke)..strokeWidth = 2,
+    final double unitH = size.width / 8.0;
+    final double unitV = size.height / 8.0;
+    final EdgeInsets padding = EdgeInsets.symmetric(
+      horizontal: unitH * 1.5,
+      vertical: unitV * 1.5,
     );
-    canvas.drawLine(
-      offset + Offset(size.width / 2, size.height - 10),
-      offset + Offset(size.width / 2 + 10, size.height - 20),
-      (Paint()..color = Colors.white)..strokeWidth = 2,
+    final Rect arcBox = padding.deflateRect(offset & size);
+    final Offset arrowHead = Offset(
+      arcBox.right,
+      arcBox.center.dy + unitV / 2.0,
     );
-    canvas.drawLine(
-      offset + Offset(size.width / 2, size.height - 10),
-      offset + Offset(size.width / 2 + 10, size.height),
-      (Paint()..color = Colors.white)..strokeWidth = 2,
+    final double arcSweep = -pi * 7.0 / 4.0;
+    final Path path = Path()
+      ..addArc(arcBox, arcSweep, -arcSweep)
+      ..lineTo(arrowHead.dx, arrowHead.dy)
+      ..moveTo(arrowHead.dx - unitH, arrowHead.dy - unitV)
+      ..relativeLineTo(unitH, unitV)
+      ..relativeLineTo(unitH, -unitV);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.butt,
     );
     if (debugPaintSizeEnabled) {
       canvas.drawCircle(offset, 5, Paint()..color = Colors.green);
@@ -173,14 +286,14 @@ class RotateCWGridCell extends GridCell {
   }
 }
 
-class SlideItem extends Item {
+class SlideCell extends Cell {
   final bool horizontal;
 
-  SlideItem(this.horizontal);
+  SlideCell(this.horizontal);
 
   @override
-  Item copy() => SlideItem(horizontal);
-  Item rotatedCW() => SlideItem(!horizontal);
+  Cell copy() => SlideCell(horizontal);
+  Cell rotatedCW() => SlideCell(!horizontal);
 
   @override
   Direction doMove() => Direction(0, 0);
@@ -234,11 +347,11 @@ class SlideGridCell extends GridCell {
   }
 }
 
-class ImmoveableItem extends Item {
+class ImmoveableCell extends Cell {
   GridCell get paintedCell => ImmoveableGridCell();
   Direction pushed(Direction dir) => Direction(0, 0);
   Direction doMove() => Direction(0, 0);
-  Item copy() => ImmoveableItem();
+  Cell copy() => ImmoveableCell();
 }
 
 class ImmoveableGridCell extends GridCell {
@@ -254,10 +367,10 @@ class ImmoveableGridCell extends GridCell {
   }
 }
 /*
-class IronOreItem extends Item {
+class IronOreCell extends Cell {
   GridCell get paintedCell => IronOreGridCell();
 
-  IronOreItem copy() => IronOreItem();
+  IronOreCell copy() => IronOreCell();
 }
 
 class IronOreGridCell extends GridCell {
@@ -285,10 +398,10 @@ class IronOreGridCell extends GridCell {
   }
 }
 
-class StoneItem extends Item {
+class StoneCell extends Cell {
   GridCell get paintedCell => StoneGridCell();
 
-  StoneItem copy() => StoneItem();
+  StoneCell copy() => StoneCell();
 }
 
 class StoneGridCell extends GridCell {
@@ -316,9 +429,9 @@ class StoneGridCell extends GridCell {
   }
 }
 
-class CoalItem extends Item {
+class CoalCell extends Cell {
   GridCell get paintedCell => CoalGridCell();
-  CoalItem copy() => CoalItem();
+  CoalCell copy() => CoalCell();
 }
 
 class CoalGridCell extends GridCell {
@@ -346,9 +459,9 @@ class CoalGridCell extends GridCell {
   }
 }
 
-class CheckmarkItem extends Item {
+class CheckmarkCell extends Cell {
   GridCell get paintedCell => CheckmarkGridCell();
-  Item copy() => CheckmarkItem();
+  Cell copy() => CheckmarkCell();
 }
 
 class CheckmarkGridCell extends GridCell {

@@ -1,9 +1,11 @@
 import 'dart:async';
-import 'dart:io';
+//import 'dart:io';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import 'package:clipboard/clipboard.dart';
 
 import 'cells.dart';
 import 'world_render.dart';
@@ -41,7 +43,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   //cursor stack
 
-  TextEditingController textFieldA = TextEditingController(text: 'temp');
+  TextEditingController textFieldA = TextEditingController(text: 'Add stuff!');
   TextEditingController textFieldB = TextEditingController(text: '0');
   Cell cursorStack;
   Offset cursorPosition;
@@ -65,7 +67,12 @@ class _MyHomePageState extends State<MyHomePage> {
     TrashCell(false),
   ];
 
-  String get levelText => texts[int.parse(textFieldB.value.text)];
+  String get levelText {
+    int lN = int.tryParse(textFieldB.value.text);
+    if (lN == null) return "Invalid level number";
+    if (lN != 8 && (lN < 0 || lN > 6)) return "Now try this one!";
+    return texts[lN];
+  }
 
   List<String> texts = [
     "Press 'Load Level' to load the level specified\nClick on a cell in the hotbar to pick it up\nClick on the grid to drop it\nPress 'Pause/Play' to start the simulation\nThe goal is to destroy all red\nReds, when something touches it, disappear along with the thing that touched it\nTry placing a turkey to start!",
@@ -73,8 +80,10 @@ class _MyHomePageState extends State<MyHomePage> {
     "Black is impassable",
     "Sliders (the yellows with lines) can only be pushed in that direction",
     "Rotators rotate things next to them",
-    "Generators (greens) generate more of what comes at the bottom, at the top",
-    "Purple is like red, but indestructible"
+    "Generators (greens) generate more of what comes at the bottom of it, at the top",
+    "Purple is like red, but indestructible",
+    "BADSTATE",
+    "You can edit while it's running",
   ];
 
   void initState() {
@@ -123,11 +132,12 @@ class _MyHomePageState extends State<MyHomePage> {
     if (moveTo != null) {
       dir = current.pushed(moveTo);
       if (current is EnemyCell) {
-        grid[x + y * kGridWidth] = EmptyCell(current.setInStone);
+        grid[x + y * kGridWidth] = EmptyCell(current.movable);
       }
       if (current is TrashCell || current is EnemyCell) {
-        grid[(x - moveTo.x) + (y - moveTo.y) * kGridWidth] =
-            EmptyCell(current.setInStone);
+        grid[(x - moveTo.x) + (y - moveTo.y) * kGridWidth] = EmptyCell(
+          grid[(x - moveTo.x) + (y - moveTo.y) * kGridWidth].movable,
+        );
       }
     } else {
       if (current.ticked) {
@@ -182,7 +192,8 @@ class _MyHomePageState extends State<MyHomePage> {
             return true;
           }
         }
-        grid[newX + newY * kGridWidth] = copied.copy()..ticked = true;
+        grid[newX + newY * kGridWidth] =
+            copied.copy(grid[newX + newY * kGridWidth].movable)..ticked = true;
         return true;
       }
     }
@@ -197,7 +208,7 @@ class _MyHomePageState extends State<MyHomePage> {
       return false;
     }
     if (grid[newX + newY * kGridWidth] is TrashCell) {
-      grid[x + y * kGridWidth] = EmptyCell(current.setInStone);
+      grid[x + y * kGridWidth] = EmptyCell(current.movable);
       return true;
     }
     if (grid[newX + newY * kGridWidth] is! EmptyCell) {
@@ -206,8 +217,10 @@ class _MyHomePageState extends State<MyHomePage> {
         return false;
       }
     }
-    grid[x + y * kGridWidth] = EmptyCell(current.setInStone);
-    grid[newX + newY * kGridWidth] = current;
+    grid[x + y * kGridWidth] = EmptyCell(current.movable);
+    grid[newX + newY * kGridWidth] = current
+        .copy(grid[newX + newY * kGridWidth].movable)
+      ..ticked = current.ticked;
     return true;
   }
 
@@ -248,17 +261,20 @@ class _MyHomePageState extends State<MyHomePage> {
                                           setState(() {
                                             if (cursorStack == null &&
                                                 x is! EmptyCell &&
-                                                !x.setInStone) {
+                                                !x.movable) {
                                               cursorStack = x;
                                               grid[grid.indexOf(x)] =
-                                                  EmptyCell(x.setInStone);
+                                                  EmptyCell(x.movable);
                                             } else if (x is EmptyCell &&
                                                 cursorStack != null &&
-                                                !x.setInStone) {
+                                                !x.movable) {
                                               grid[grid.indexOf(x)] =
                                                   cursorStack;
                                               cursorStack = null;
                                             }
+                                            textFieldA.value = TextEditingValue(
+                                              text: grid.join(''),
+                                            );
                                           });
                                         },
                                       ),
@@ -299,6 +315,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                           );
                                         },
                                       ),
+                                      /*
                                       SizedBox(
                                         child: TextField(
                                           controller: textFieldA,
@@ -310,6 +327,8 @@ class _MyHomePageState extends State<MyHomePage> {
                                         width: 150,
                                         height: 20,
                                       ),
+
+                                      
                                       TextButton(
                                         child: Text("Save to file"),
                                         onPressed: () {
@@ -327,12 +346,12 @@ class _MyHomePageState extends State<MyHomePage> {
                                               .map((e) => parse(e, true))
                                               .toList();
                                         },
-                                      ),
+                                      ),// */
                                       SizedBox(
                                         child: TextField(
                                           controller: textFieldB,
                                           decoration: InputDecoration(
-                                            labelText: "Level number (0-**)",
+                                            labelText: "Level number (0-8)",
                                             border: OutlineInputBorder(),
                                           ),
                                         ),
@@ -343,10 +362,31 @@ class _MyHomePageState extends State<MyHomePage> {
                                         child: Text("Load level"),
                                         onPressed: () async {
                                           grid = (await rootBundle.loadString(
-                                                  'levels/level-'+textFieldB.value.text))
+                                                  'levels/level-' +
+                                                      textFieldB.value.text))
                                               .split('')
                                               .map((e) => parse(e, true))
                                               .toList();
+                                        },
+                                      ),
+                                      TextButton(
+                                          onPressed: () {
+                                            FlutterClipboard.copy(
+                                                grid.join(''));
+                                          },
+                                          child: Text(
+                                              "Copy level code to clipboard")),
+                                      TextButton(
+                                        child: Text("Load clipboard"),
+                                        onPressed: () async {
+                                          FlutterClipboard.paste().then(
+                                            (value) {
+                                              grid = value
+                                                  .split('')
+                                                  .map((e) => parse(e, true))
+                                                  .toList();
+                                            },
+                                          );
                                         },
                                       ),
                                     ],
@@ -398,7 +438,9 @@ class _MyHomePageState extends State<MyHomePage> {
       return;
     }
 
-    grid[x + y * kGridWidth] = grid[x + y * kGridWidth].rotatedCW()
+    grid[x + y * kGridWidth] = grid[x + y * kGridWidth]
+        .rotatedCW()
+        .copy(grid[x + y * kGridWidth].movable)
       ..ticked = grid[x + y * kGridWidth].ticked;
   }
 }

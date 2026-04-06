@@ -15,25 +15,25 @@ class Direction {
 }
 
 abstract class Cell {
-  Cell(this.setInStone);
+  Cell(this.movable);
 
   GridCell get paintedCell;
   Direction doMove();
   Direction pushed(Direction direction);
-  Cell copy();
+  Cell copy([bool newMovable]);
   Cell rotatedCW() => copy();
   bool ticked = false;
-  final bool setInStone;
+  final bool movable;
 }
 
 class EmptyCell extends Cell {
   EmptyCell(bool setInStone) : super(setInStone);
 
-  GridCell get paintedCell => EmptyGridCell(setInStone);
+  GridCell get paintedCell => EmptyGridCell(movable);
   Direction pushed(Direction dir) => throw UnsupportedError("move");
   Direction doMove() => Direction(0, 0);
-  Cell copy() => EmptyCell(setInStone);
-  String toString() => setInStone ? ' ' : '+';
+  Cell copy([bool newMovable = false]) => EmptyCell(newMovable);
+  String toString() => movable ? ' ' : '+';
 }
 
 class EmptyGridCell extends GridCell {
@@ -41,9 +41,15 @@ class EmptyGridCell extends GridCell {
   final bool haveNoPlus;
   @override
   void paint(Canvas canvas, Size size, Offset offset) {
-    if(!haveNoPlus) {
-      canvas.drawLine(offset + Offset(size.width/2,size.height/4), offset + Offset(size.width/2,size.height*3/4), Paint()..color = Colors.black);
-      canvas.drawLine(offset + Offset(size.width/4,size.height/2), offset + Offset(size.width*3/4,size.height/2), Paint()..color = Colors.black);
+    if (!haveNoPlus) {
+      canvas.drawLine(
+          offset + Offset(size.width / 2, size.height / 4),
+          offset + Offset(size.width / 2, size.height * 3 / 4),
+          Paint()..color = Colors.black);
+      canvas.drawLine(
+          offset + Offset(size.width / 4, size.height / 2),
+          offset + Offset(size.width * 3 / 4, size.height / 2),
+          Paint()..color = Colors.black);
     }
   }
 }
@@ -86,7 +92,7 @@ class MoveCell extends Cell {
     throw StateError(radiansRotated.toString());
   }
 
-  Cell copy() => MoveCell(moveDir, setInStone);
+  Cell copy([bool newMovable = false]) => MoveCell(moveDir, newMovable);
   Cell rotatedCW() {
     int newX = 0;
     int newY = 0;
@@ -95,7 +101,7 @@ class MoveCell extends Cell {
     } else {
       newY = moveDir.x == 1 ? 1 : -1;
     }
-    return MoveCell(Direction(newX, newY), setInStone);
+    return MoveCell(Direction(newX, newY), movable);
   }
 }
 
@@ -182,7 +188,7 @@ class GeneratorCell extends Cell {
     return radians;
   }
 
-  Cell copy() => GeneratorCell(moveDir, setInStone);
+  Cell copy([bool newMovable = false]) => GeneratorCell(moveDir, newMovable);
   Cell rotatedCW() {
     int newX = 0;
     int newY = 0;
@@ -191,7 +197,7 @@ class GeneratorCell extends Cell {
     } else {
       newY = moveDir.x == 1 ? 1 : -1;
     }
-    return GeneratorCell(Direction(newX, newY), setInStone);
+    return GeneratorCell(Direction(newX, newY), movable);
   }
 }
 
@@ -248,7 +254,7 @@ class MoveableCell extends Cell {
   GridCell get paintedCell => MoveableGridCell();
   Direction pushed(Direction dir) => dir;
   Direction doMove() => Direction(0, 0);
-  Cell copy() => MoveableCell(setInStone);
+  Cell copy([bool newMovable = false]) => MoveableCell(newMovable);
   String toString() => "#";
 }
 
@@ -271,7 +277,7 @@ class EnemyCell extends Cell {
   GridCell get paintedCell => EnemyGridCell();
   Direction pushed(Direction dir) => Direction(0, 0);
   Direction doMove() => Direction(0, 0);
-  Cell copy() => EnemyCell(setInStone);
+  Cell copy([bool newMovable = false]) => EnemyCell(newMovable);
   String toString() => 'E';
 }
 
@@ -294,7 +300,7 @@ class TrashCell extends Cell {
   GridCell get paintedCell => TrashGridCell();
   Direction pushed(Direction dir) => Direction(0, 0);
   Direction doMove() => Direction(0, 0);
-  Cell copy() => TrashCell(setInStone);
+  Cell copy([bool newMovable = false]) => TrashCell(newMovable);
   String toString() => 'T';
 }
 
@@ -317,7 +323,7 @@ class RotateCWCell extends Cell {
   GridCell get paintedCell => RotateCWGridCell();
   Direction pushed(Direction dir) => dir;
   Direction doMove() => Direction(0, 0);
-  Cell copy() => RotateCWCell(setInStone);
+  Cell copy([bool newMovable = false]) => RotateCWCell(newMovable);
   String toString() => 'R';
 }
 
@@ -366,7 +372,7 @@ class RotateCCWCell extends Cell {
   GridCell get paintedCell => RotateCCWGridCell();
   Direction pushed(Direction dir) => dir;
   Direction doMove() => Direction(0, 0);
-  Cell copy() => RotateCCWCell(setInStone);
+  Cell copy([bool newMovable = false]) => RotateCCWCell(newMovable);
   String toString() => 'i';
 }
 
@@ -418,8 +424,8 @@ class SlideCell extends Cell {
   SlideCell(this.horizontal, bool setInStone) : super(setInStone);
 
   @override
-  Cell copy() => SlideCell(horizontal, setInStone);
-  Cell rotatedCW() => SlideCell(!horizontal, setInStone);
+  Cell copy([bool newMovable = false]) => SlideCell(horizontal, newMovable);
+  Cell rotatedCW() => SlideCell(!horizontal, movable);
 
   @override
   Direction doMove() => Direction(0, 0);
@@ -479,7 +485,7 @@ class ImmoveableCell extends Cell {
   GridCell get paintedCell => ImmoveableGridCell();
   Direction pushed(Direction dir) => Direction(0, 0);
   Direction doMove() => Direction(0, 0);
-  Cell copy() => ImmoveableCell(setInStone);
+  Cell copy([bool newMovable = false]) => ImmoveableCell(newMovable);
   String toString() => "X";
 }
 
